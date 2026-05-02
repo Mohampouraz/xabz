@@ -9,7 +9,9 @@ jobs:
     if: startsWith(github.event.issue.title, 'DOWNLOAD:')
     runs-on: ubuntu-latest
     steps:
-      # بیرون کشیدن URL از عنوان ایشو
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Extract URL
         id: extract_url
         run: |
@@ -18,18 +20,14 @@ jobs:
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "filename=$(basename "$URL")" >> $GITHUB_OUTPUT
 
-      # دانلود هوشمندانه با curl که شبیه مرورگر رفتار می‌کنه
       - name: Download File
         run: |
           curl -L -H "User-Agent: Mozilla/5.0" -o "${{ steps.extract_url.outputs.filename }}" "${{ steps.extract_url.outputs.url }}"
 
-      # آپلود مستقیم خودمون (دیگه به Action دیگه ای وابسته نیستیم)
-      - name: Upload to this repo
+      - name: Commit and Push to repo
         run: |
-          mkdir -p output
-          cp "${{ steps.extract_url.outputs.filename }}" output/
-          
-      - uses: actions/upload-artifact@v4
-        with:
-          name: my-download
-          path: output/
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add "${{ steps.extract_url.outputs.filename }}"
+          git commit -m "Add downloaded file: ${{ steps.extract_url.outputs.filename }}"
+          git push

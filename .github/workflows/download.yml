@@ -8,26 +8,51 @@ jobs:
   get-file:
     if: startsWith(github.event.issue.title, 'DOWNLOAD:')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract URL
+      - name: Get URL
         id: extract_url
         run: |
           TITLE="${{ github.event.issue.title }}"
           URL=${TITLE#DOWNLOAD:}
           echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "filename=$(basename "$URL")" >> $GITHUB_OUTPUT
+          FN=$(basename "$URL")
+          echo "filename=$FN" >> $GITHUB_OUTPUT
 
-      - name: Download File
+      - name: Download
         run: |
-          curl -L -H "User-Agent: Mozilla/5.0" -o "${{ steps.extract_url.outputs.filename }}" "${{ steps.extract_url.outputs.url }}"
+          curl -L -H "User-Agent: Python" -o "${{ steps.extract_url.outputs.filename }}" "${{ steps.extract_url.outputs.url }}"
 
-      - name: Commit and Push to repo
+      - name: Create branch and push
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          # Create orphan branch (no history)
+          git checkout --orphan download-${{ github.event.issue.number }}
+          git rm -rf .
+          cp /dev/null README.md
           git add "${{ steps.extract_url.outputs.filename }}"
-          git commit -m "Add downloaded file: ${{ steps.extract_url.outputs.filename }}"
-          git push
+          git commit -m "Add ${{ steps.extract_url.outputs.filename }}"
+          git push origin download-${{ github.event.issue.number }} --force
+
+      - name: Close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '✅ Done! Run these commands in PowerShell:\n\n```\ncd your_folder\ngit fetch origin download-4\ngit checkout download-4\n```'
+            });

@@ -1,0 +1,37 @@
+name: Download File for AbolfazlX7
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  download:
+    if: startsWith(github.event.issue.title, 'DOWNLOAD:')
+    runs-on: ubuntu-latest
+    steps:
+    - name: Get the URL from issue title
+      id: get_url
+      run: |
+        TITLE="${{ github.event.issue.title }}"
+        URL=${TITLE#DOWNLOAD:}
+        echo "url=$URL" >> $GITHUB_OUTPUT
+        echo "Found URL: $URL"
+
+    - name: Download the file
+      run: |
+        URL="${{ steps.get_url.outputs.url }}"
+        FILENAME=$(basename "$URL")
+        wget -O "$FILENAME" "$URL"
+        echo "filename=$FILENAME" >> $GITHUB_ENV
+
+    - name: Upload as Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v1.0.0
+        files: ${{ env.filename }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Close the issue
+      run: |
+        gh issue close ${{ github.event.issue.number }} -c "File downloaded and available in Releases."

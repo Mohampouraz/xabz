@@ -1,37 +1,35 @@
-name: Download File for AbolfazlX7
+name: downloader
 
 on:
   issues:
     types: [opened]
 
 jobs:
-  download:
+  get-file:
     if: startsWith(github.event.issue.title, 'DOWNLOAD:')
     runs-on: ubuntu-latest
     steps:
-    - name: Get the URL from issue title
-      id: get_url
-      run: |
-        TITLE="${{ github.event.issue.title }}"
-        URL=${TITLE#DOWNLOAD:}
-        echo "url=$URL" >> $GITHUB_OUTPUT
-        echo "Found URL: $URL"
+      # بیرون کشیدن URL از عنوان ایشو
+      - name: Extract URL
+        id: extract_url
+        run: |
+          TITLE="${{ github.event.issue.title }}"
+          URL=${TITLE#DOWNLOAD:}
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "filename=$(basename "$URL")" >> $GITHUB_OUTPUT
 
-    - name: Download the file
-      run: |
-        URL="${{ steps.get_url.outputs.url }}"
-        FILENAME=$(basename "$URL")
-        wget -O "$FILENAME" "$URL"
-        echo "filename=$FILENAME" >> $GITHUB_ENV
+      # دانلود هوشمندانه با curl که شبیه مرورگر رفتار می‌کنه
+      - name: Download File
+        run: |
+          curl -L -H "User-Agent: Mozilla/5.0" -o "${{ steps.extract_url.outputs.filename }}" "${{ steps.extract_url.outputs.url }}"
 
-    - name: Upload as Release Asset
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v1.0.0
-        files: ${{ env.filename }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Close the issue
-      run: |
-        gh issue close ${{ github.event.issue.number }} -c "File downloaded and available in Releases."
+      # آپلود مستقیم خودمون (دیگه به Action دیگه ای وابسته نیستیم)
+      - name: Upload to this repo
+        run: |
+          mkdir -p output
+          cp "${{ steps.extract_url.outputs.filename }}" output/
+          
+      - uses: actions/upload-artifact@v4
+        with:
+          name: my-download
+          path: output/
